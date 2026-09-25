@@ -1,12 +1,11 @@
 package com.wei.android.lib.fingerprintidentify;
 
 import android.content.Context;
+import android.os.Build;
 
 import com.wei.android.lib.fingerprintidentify.base.BaseFingerprint;
 import com.wei.android.lib.fingerprintidentify.impl.AndroidFingerprint;
 import com.wei.android.lib.fingerprintidentify.impl.BiometricImpl;
-import com.wei.android.lib.fingerprintidentify.impl.MeiZuFingerprint;
-import com.wei.android.lib.fingerprintidentify.impl.SamsungFingerprint;
 
 import javax.crypto.Cipher;
 
@@ -38,8 +37,6 @@ public class FingerprintIdentify {
     protected Context mContext;
     protected BaseFingerprint.ExceptionListener mExceptionListener;
 
-    protected boolean mIsSupportAndroidL = false;
-
     protected BaseFingerprint mFingerprint;
     protected BaseFingerprint mSubFingerprint;
 
@@ -49,7 +46,7 @@ public class FingerprintIdentify {
 
     private byte[] mCipherIV = null;
 
-    private boolean mUseBiometricApi = false;
+    private String mKeyAlias = null;
 
     public FingerprintIdentify(Context context) {
         mContext = context;
@@ -68,58 +65,45 @@ public class FingerprintIdentify {
         return this.mCipherMode;
     }
 
-    public void setUseBiometricApi(boolean on) {
-        mUseBiometricApi = on;
+    /** Android Keystore alias of the auth-bound AES-256-GCM key. */
+    public void setKeyAlias(String keyAlias) {
+        this.mKeyAlias = keyAlias;
     }
 
     public boolean isUsingBiometricApi() {
         return mFingerprint instanceof BiometricImpl;
     }
 
-    public void setSupportAndroidL(boolean supportAndroidL) {
-        mIsSupportAndroidL = supportAndroidL;
-    }
-
     public void setExceptionListener(BaseFingerprint.ExceptionListener exceptionListener) {
         mExceptionListener = exceptionListener;
     }
 
+    /**
+     * Hardened selection:
+     * API 30+  : framework BiometricPrompt, BIOMETRIC_STRONG only, with CryptoObject.
+     * API 23-29: framework FingerprintManager with CryptoObject (fingerprint = strong class).
+     * API < 23 : unsupported (no auth-bound Keystore keys). Vendor SDKs were removed.
+     */
     public void init() {
-
-        if (mUseBiometricApi) {
+        mFingerprint = null;
+        mSubFingerprint = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             BiometricImpl biometricImpl = new BiometricImpl(mContext, mExceptionListener);
             if (biometricImpl.isHardwareEnable()) {
                 mSubFingerprint = biometricImpl;
                 if (biometricImpl.isRegisteredFingerprint()) {
                     mFingerprint = biometricImpl;
-                    return;
                 }
             }
+            return;
         }
-
-        AndroidFingerprint androidFingerprint = new AndroidFingerprint(mContext, mExceptionListener, mIsSupportAndroidL);
-        if (androidFingerprint.isHardwareEnable()) {
-            mSubFingerprint = androidFingerprint;
-            if (androidFingerprint.isRegisteredFingerprint()) {
-                mFingerprint = androidFingerprint;
-                return;
-            }
-        }
-
-        SamsungFingerprint samsungFingerprint = new SamsungFingerprint(mContext, mExceptionListener);
-        if (samsungFingerprint.isHardwareEnable()) {
-            mSubFingerprint = samsungFingerprint;
-            if (samsungFingerprint.isRegisteredFingerprint()) {
-                mFingerprint = samsungFingerprint;
-                return;
-            }
-        }
-
-        MeiZuFingerprint meiZuFingerprint = new MeiZuFingerprint(mContext, mExceptionListener);
-        if (meiZuFingerprint.isHardwareEnable()) {
-            mSubFingerprint = meiZuFingerprint;
-            if (meiZuFingerprint.isRegisteredFingerprint()) {
-                mFingerprint = meiZuFingerprint;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            AndroidFingerprint androidFingerprint = new AndroidFingerprint(mContext, mExceptionListener);
+            if (androidFingerprint.isHardwareEnable()) {
+                mSubFingerprint = androidFingerprint;
+                if (androidFingerprint.isRegisteredFingerprint()) {
+                    mFingerprint = androidFingerprint;
+                }
             }
         }
     }
@@ -131,7 +115,7 @@ public class FingerprintIdentify {
         }
 
         mFingerprint.startIdentify(this.mMaxAvailableTimes,
-                this.mCipherMode, this.mCipherIV, listener);
+                this.mCipherMode, this.mCipherIV, this.mKeyAlias, listener);
     }
 
     public void cancelIdentify() {

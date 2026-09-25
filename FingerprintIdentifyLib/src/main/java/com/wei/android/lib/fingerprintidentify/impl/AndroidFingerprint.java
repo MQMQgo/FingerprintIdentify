@@ -2,6 +2,7 @@ package com.wei.android.lib.fingerprintidentify.impl;
 
 import android.content.Context;
 import android.hardware.fingerprint.FingerprintManager;
+import android.annotation.TargetApi;
 import android.os.Build;
 import android.util.Log;
 
@@ -10,9 +11,10 @@ import androidx.core.os.CancellationSignal;
 import com.wei.android.lib.fingerprintidentify.aosp.FingerprintManagerCompat;
 import com.wei.android.lib.fingerprintidentify.base.BaseFingerprint;
 import com.wei.android.lib.fingerprintidentify.bean.FingerprintIdentifyFailInfo;
-import com.wei.android.lib.fingerprintidentify.util.NotifyUtils;
 
 /**
+ * Hardened: API 23-29 only, CryptoObject mandatory, no authenticate(null) pre-auth.
+ * <p>
  * Copyright (c) 2017 Awei
  * <p>
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,19 +37,18 @@ import com.wei.android.lib.fingerprintidentify.util.NotifyUtils;
  * <p>
  * Created by Awei on 2017/2/9.
  */
+@TargetApi(Build.VERSION_CODES.M)
 public class AndroidFingerprint extends BaseFingerprint {
 
     private static final String TAG = "AndroidFingerprint";
     private CancellationSignal mCancellationSignal;
     private FingerprintManagerCompat mFingerprintManagerCompat;
 
-    public AndroidFingerprint(Context context, ExceptionListener exceptionListener, boolean iSupportAndroidL) {
+    public AndroidFingerprint(Context context, ExceptionListener exceptionListener) {
         super(context, exceptionListener);
 
-        if (!iSupportAndroidL) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                return;
-            }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return;
         }
 
         try {
@@ -63,43 +64,18 @@ public class AndroidFingerprint extends BaseFingerprint {
     protected void doIdentify() {
         FingerprintManagerCompat.CryptoObject cryptoObject = createCryptoObject(FingerprintManagerCompat.CryptoObject.class);
         if (cryptoObject == null) {
-            Log.e(TAG, "Unable to auth with CryptoObject, retry authenticate.");
+            // createCryptoObject already reported onFailed(); never authenticate without a CryptoObject.
+            Log.e(TAG, "Unable to create CryptoObject, abort.");
+            return;
         }
-        IAuthCallback callback = result -> {
-            FingerprintManagerCompat.CryptoObject crypto = result.getCryptoObject();
-            if (crypto != null) {
-                onSucceed(crypto.getCipher());
-            } else {
-                onSucceed(null);
-            }
-        };
-        if (cryptoObject != null) {
-            authenticate(cryptoObject, callback);
-        } else {
-            /**
-             * android.security.keystore.UserNotAuthenticatedException: User not authenticated
-             * 通常是用户使用了不够安全的方式解锁手机 或上一次验证时间已过30s + setUserAuthenticationValidityDurationSeconds(30)
-             * 先强制要求用户不用CryptoObject认证一遍先. 在走原先的认证逻辑
-             */
-            authenticate(null, result -> {
-                NotifyUtils.notifyFingerprintTapped(mContext);
-                FingerprintManagerCompat.CryptoObject crypto = createCryptoObject(FingerprintManagerCompat.CryptoObject.class);
-                if (crypto == null) {
-                    Log.e(TAG, "Unable to auth with CryptoObject, use fallback instead.");
-                }
-                authenticate(crypto, callback);
-            });
-        }
-    }
-
-    private void authenticate(FingerprintManagerCompat.CryptoObject cryptoObject, IAuthCallback callback) {
         try {
             mCancellationSignal = new CancellationSignal();
             mFingerprintManagerCompat.authenticate(cryptoObject, 0, mCancellationSignal, new FingerprintManagerCompat.AuthenticationCallback() {
                 @Override
                 public void onAuthenticationSucceeded(FingerprintManagerCompat.AuthenticationResult result) {
                     super.onAuthenticationSucceeded(result);
-                    callback.onAuthenticationSucceeded(result);
+                    FingerprintManagerCompat.CryptoObject crypto = result.getCryptoObject();
+                    onSucceed(crypto == null ? null : crypto.getCipher());
                 }
 
                 @Override
@@ -113,17 +89,13 @@ public class AndroidFingerprint extends BaseFingerprint {
                     super.onAuthenticationError(errMsgId, errString);
                     boolean deviceLocked = errMsgId == FingerprintManager.FINGERPRINT_ERROR_LOCKOUT ||
                             errMsgId == FingerprintManager.FINGERPRINT_ERROR_LOCKOUT_PERMANENT;
-                    onFailed(new FingerprintIdentifyFailInfo(deviceLocked, errMsgId, errString.toString()));
+                    onFailed(new FingerprintIdentifyFailInfo(deviceLocked, errMsgId, String.valueOf(errString)));
                 }
             }, null);
         } catch (Throwable e) {
             onCatchException(e);
             onFailed(new FingerprintIdentifyFailInfo(false, e));
         }
-    }
-
-    private interface IAuthCallback {
-        void onAuthenticationSucceeded(FingerprintManagerCompat.AuthenticationResult result);
     }
 
     @Override

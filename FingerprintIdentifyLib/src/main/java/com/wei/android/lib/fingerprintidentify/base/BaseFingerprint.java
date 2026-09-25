@@ -55,6 +55,8 @@ public abstract class BaseFingerprint {
 
     protected byte[] mCipherIV = null;
 
+    protected String mKeyAlias = null;
+
     public BaseFingerprint(Context context, ExceptionListener exceptionListener) {
         mContext = context;
         mExceptionListener = exceptionListener;
@@ -63,8 +65,9 @@ public abstract class BaseFingerprint {
 
     // DO
     public void startIdentify(int maxAvailableTimes,
-                              int cipherMode, byte[] cipherIV,
+                              int cipherMode, byte[] cipherIV, String keyAlias,
                               IdentifyListener identifyListener) {
+        mKeyAlias = keyAlias;
         mMaxAvailableTimes = maxAvailableTimes;
         mIdentifyListener = identifyListener;
         mIsCalledStartIdentify = true;
@@ -96,6 +99,12 @@ public abstract class BaseFingerprint {
     // CALLBACK
     protected void onSucceed(@Nullable Cipher cipher) {
         if (mIsCanceledIdentify) {
+            return;
+        }
+
+        if (cipher == null) {
+            // Hardened: success without an authenticated CryptoObject is treated as failure.
+            onFailed(new FingerprintIdentifyFailInfo(false, new IllegalStateException("No authenticated cipher")));
             return;
         }
 
@@ -212,21 +221,26 @@ public abstract class BaseFingerprint {
         return true;
     }
 
+    /**
+     * Creates the CryptoObject bound to the hardware Keystore key.
+     * On any error this reports {@link #onFailed} (there is no software fallback) and returns null;
+     * callers must then abort the identification.
+     */
     @Nullable
     protected <T> T createCryptoObject(Class<T> tClass) {
         int cipherMode = this.mCipherMode;
         byte[] iv = this.mCipherIV;
-        if (cipherMode == Cipher.DECRYPT_MODE && iv == null) {
-            return null;
-        }
         try {
-            CryptoObjectHelper cryptoObjectHelper = new CryptoObjectHelper();
-            if (cipherMode == Cipher.ENCRYPT_MODE) {
-                cryptoObjectHelper.removeKey();
-            }
+            CryptoObjectHelper cryptoObjectHelper = new CryptoObjectHelper(mKeyAlias);
             return cryptoObjectHelper.createCryptoObject(tClass, cipherMode, iv);
-        } catch (Exception e) {
+        } catch (CryptoObjectHelper.KeyInvalidatedException e) {
             onCatchException(e);
+            FingerprintIdentifyFailInfo info = new FingerprintIdentifyFailInfo(false, e);
+            info.keyInvalidated = true;
+            onFailed(info);
+        } catch (Throwable e) {
+            onCatchException(e);
+            onFailed(new FingerprintIdentifyFailInfo(false, e));
         }
         return null;
     }

@@ -10,6 +10,12 @@ public class FingerprintIdentifyFailInfo {
 
     public Throwable throwable;
 
+    /** Keystore key was permanently invalidated / missing: stored ciphertext must be discarded. */
+    public boolean keyInvalidated;
+
+    /** BiometricPrompt negative button ("使用密码") */
+    public static final int ERROR_NEGATIVE_BUTTON = 13;
+
     public FingerprintIdentifyFailInfo(boolean deviceLocked) {
         this.deviceLocked = deviceLocked;
     }
@@ -27,7 +33,8 @@ public class FingerprintIdentifyFailInfo {
 
     public boolean isCancel() {
         return this.errorCode == FingerprintManager.FINGERPRINT_ERROR_CANCELED
-            || this.errorCode == FingerprintManager.FINGERPRINT_ERROR_USER_CANCELED;
+            || this.errorCode == FingerprintManager.FINGERPRINT_ERROR_USER_CANCELED
+            || this.errorCode == ERROR_NEGATIVE_BUTTON;
     }
 
     @Override
@@ -41,6 +48,7 @@ public class FingerprintIdentifyFailInfo {
                 "deviceLocked=" + deviceLocked +
                 ", errorCode=" + errorCode +
                 ", errString='" + errString + '\'' +
+                ", keyInvalidated=" + keyInvalidated +
                 ", throwable=" + throwable +
                 ", cause=" + cause +
                 ", throwable.cause=" + Log.getStackTraceString(throwable) +

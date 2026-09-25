@@ -25,7 +25,7 @@ android {
 }
 
 dependencies {
-    api fileTree(dir: 'libs', include: ['*.jar'])
+    // Hardened fork: vendor SDK jars (Samsung Pass / MeiZu) and androidx.biometric removed.
+    // Only framework FingerprintManager (API 23-29) and framework BiometricPrompt (API 30+) are used.
     implementation 'androidx.appcompat:appcompat:1.0.2'
-    implementation 'androidx.biometric:biometric:1.1.0'
 }
