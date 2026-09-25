@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed vendor SDKs/fallbacks, key alias, key invalidation
 package com.wei.android.lib.fingerprintidentify.base;
 
 import android.content.Context;

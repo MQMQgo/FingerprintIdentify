@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: framework BiometricPrompt, BIOMETRIC_STRONG only, CryptoObject required
 package com.wei.android.lib.fingerprintidentify.impl;
 
 import android.annotation.TargetApi;

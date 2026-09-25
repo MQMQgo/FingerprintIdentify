@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed vendor jars and androidx.biometric
 apply plugin: 'com.android.library'
 
 android {

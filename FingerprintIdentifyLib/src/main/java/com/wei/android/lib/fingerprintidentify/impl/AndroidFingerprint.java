@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: CryptoObject required, removed pre-auth
 package com.wei.android.lib.fingerprintidentify.impl;
 
 import android.content.Context;

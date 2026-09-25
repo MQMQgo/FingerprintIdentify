@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: hardware-backed AES-256-GCM key bound to BIOMETRIC_STRONG
 package com.wei.android.lib.fingerprintidentify.util;
 
 import android.annotation.TargetApi;

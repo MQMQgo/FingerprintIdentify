@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: key invalidation flag, negative button
 package com.wei.android.lib.fingerprintidentify.bean;
 
 import android.hardware.fingerprint.FingerprintManager;
